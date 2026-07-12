@@ -1,0 +1,326 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.2.0
+  description: IMDb Movie Rating Scraper API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+  - name: movies
+  - name: watchlist
+  - name: scrape
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /movies:
+    get:
+      operationId: listMovies
+      tags: [movies]
+      summary: List scraped movies
+      parameters:
+        - name: search
+          in: query
+          schema: { type: string }
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [rank, title, year, rating, runtime]
+        - name: sortOrder
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+        - name: minRating
+          in: query
+          schema: { type: number }
+        - name: maxRating
+          in: query
+          schema: { type: number }
+        - name: minYear
+          in: query
+          schema: { type: integer }
+        - name: maxYear
+          in: query
+          schema: { type: integer }
+        - name: genre
+          in: query
+          schema: { type: string }
+          description: Filter by genre (exact match)
+        - name: watchlistOnly
+          in: query
+          schema: { type: boolean }
+          description: Only return watchlisted movies
+        - name: watchedOnly
+          in: query
+          schema: { type: boolean }
+          description: Only return watched movies
+      responses:
+        "200":
+          description: List of movies
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Movie"
+
+  /movies/stats:
+    get:
+      operationId: getMovieStats
+      tags: [movies]
+      summary: Get movie statistics
+      responses:
+        "200":
+          description: Statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MovieStats"
+
+  /movies/scrape-status:
+    get:
+      operationId: getScrapeStatus
+      tags: [scrape]
+      responses:
+        "200":
+          description: Scrape status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScrapeStatus"
+
+  /movies/{imdbId}/watchlist:
+    post:
+      operationId: addToWatchlist
+      tags: [watchlist]
+      summary: Add movie to watchlist
+      parameters:
+        - name: imdbId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Watchlist entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WatchlistEntry"
+    delete:
+      operationId: removeFromWatchlist
+      tags: [watchlist]
+      summary: Remove movie from watchlist
+      parameters:
+        - name: imdbId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204":
+          description: Removed
+
+  /movies/{imdbId}/watched:
+    post:
+      operationId: markWatched
+      tags: [watchlist]
+      summary: Mark movie as watched
+      parameters:
+        - name: imdbId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Updated entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WatchlistEntry"
+    delete:
+      operationId: unmarkWatched
+      tags: [watchlist]
+      summary: Unmark movie as watched
+      parameters:
+        - name: imdbId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Updated entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WatchlistEntry"
+
+  /scrape/history:
+    get:
+      operationId: getScrapeHistory
+      tags: [scrape]
+      summary: Get scrape run history
+      responses:
+        "200":
+          description: List of past scrape runs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ScrapeRun"
+
+  /scrape:
+    post:
+      operationId: triggerScrape
+      tags: [scrape]
+      summary: Trigger a fresh scrape of IMDb Top 250
+      responses:
+        "200":
+          description: Scrape completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScrapeResult"
+        "409":
+          description: Scrape already in progress
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { type: string }
+                required: [error]
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status: { type: string }
+      required: [status]
+
+    Movie:
+      type: object
+      required: [rank, title, year, rating, imdbId]
+      properties:
+        rank: { type: integer }
+        title: { type: string }
+        year: { type: integer }
+        rating: { type: number }
+        votes: { type: ["string", "null"] }
+        imdbId: { type: string }
+        director: { type: ["string", "null"] }
+        genres:
+          type: ["array", "null"]
+          items: { type: string }
+        runtime: { type: ["integer", "null"] }
+        plot: { type: ["string", "null"] }
+        inWatchlist: { type: boolean }
+        watched: { type: boolean }
+
+    MovieStats:
+      type: object
+      required: [totalMovies, averageRating, highestRating, lowestRating, newestYear, oldestYear, ratingDistribution, decadeDistribution, genreDistribution, topDirectors]
+      properties:
+        totalMovies: { type: integer }
+        averageRating: { type: number }
+        highestRating: { type: number }
+        lowestRating: { type: number }
+        newestYear: { type: integer }
+        oldestYear: { type: integer }
+        averageRuntime: { type: ["number", "null"] }
+        watchedCount: { type: integer }
+        watchlistCount: { type: integer }
+        ratingDistribution:
+          type: array
+          items: { $ref: "#/components/schemas/RatingBucket" }
+        decadeDistribution:
+          type: array
+          items: { $ref: "#/components/schemas/DecadeBucket" }
+        genreDistribution:
+          type: array
+          items: { $ref: "#/components/schemas/GenreBucket" }
+        topDirectors:
+          type: array
+          items: { $ref: "#/components/schemas/DirectorBucket" }
+
+    RatingBucket:
+      type: object
+      required: [range, count]
+      properties:
+        range: { type: string }
+        count: { type: integer }
+
+    DecadeBucket:
+      type: object
+      required: [decade, count]
+      properties:
+        decade: { type: string }
+        count: { type: integer }
+
+    GenreBucket:
+      type: object
+      required: [genre, count]
+      properties:
+        genre: { type: string }
+        count: { type: integer }
+
+    DirectorBucket:
+      type: object
+      required: [director, count, avgRating]
+      properties:
+        director: { type: string }
+        count: { type: integer }
+        avgRating: { type: number }
+
+    WatchlistEntry:
+      type: object
+      required: [imdbId, watched, addedAt]
+      properties:
+        imdbId: { type: string }
+        watched: { type: boolean }
+        addedAt: { type: string }
+        watchedAt: { type: ["string", "null"] }
+
+    ScrapeStatus:
+      type: object
+      required: [lastScrapedAt, totalMovies, isScrapingNow]
+      properties:
+        lastScrapedAt: { type: ["string", "null"] }
+        totalMovies: { type: integer }
+        isScrapingNow: { type: boolean }
+
+    ScrapeRun:
+      type: object
+      required: [id, startedAt, totalScraped, success]
+      properties:
+        id: { type: integer }
+        startedAt: { type: string }
+        completedAt: { type: ["string", "null"] }
+        totalScraped: { type: integer }
+        durationMs: { type: ["integer", "null"] }
+        success: { type: string }
+        error: { type: ["string", "null"] }
+
+    ScrapeResult:
+      type: object
+      required: [success, totalScraped, durationMs]
+      properties:
+        success: { type: boolean }
+        totalScraped: { type: integer }
+        durationMs: { type: integer }
+        error: { type: ["string", "null"] }
